@@ -8,7 +8,7 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/androidtts" />
+            <option value="$PROJECT_DIR$/TTS_Android" />
             <option value="$PROJECT_DIR$/app" />
           </set>
         </option>
