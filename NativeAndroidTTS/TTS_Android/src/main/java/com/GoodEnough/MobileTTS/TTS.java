@@ -1,76 +1,163 @@
 package com.GoodEnough.MobileTTS;
 
 import android.content.Context;
+import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
+import android.speech.tts.Voice;
 
-import java.util.Locale;
-import com.unity3d.player.UnityPlayer;
+import java.util.Set;
+import android.speech.tts.TextToSpeech.OnInitListener;
 
-
-public class TTS {
-
-    private Context context;
-    private TextToSpeech t1;
-    private String textToSpeak = "hello";
+public class TTS
+{
     private static TTS instance;
-    public float Speed = 1f;
-    public float Pitch = 1f;
+    private static PluginCallback _onInitCallback;
+    private TextToSpeech textToSpeech;
 
-    private String _gameObject;
-    private String _callback;
+    public Set<Voice> AllVoices;
+    public boolean IsInitialized = false;
 
-    public TTS() {
-        this.instance = this;
+    public TTS(Context context)
+    {
+        textToSpeech = new TextToSpeech(context, new OnInitListener() {
+            @Override
+            public void onInit(int status)
+            {
+                if (status == TextToSpeech.SUCCESS)
+                {
+                    AllVoices = textToSpeech.getVoices();
+                    IsInitialized = true;
+                    _onInitCallback.onSuccess();
+                }
+                else
+                {
+                    _onInitCallback.onError("TTS Initialization failed");
+                }
+            }
+        });
     }
 
-    public static TTS instance() {
-        if (instance == null) {
-            instance = new TTS();
+    public static TTS GetInstance(Context context, PluginCallback onInitCallback)
+    {
+        if (instance == null)
+        {
+            _onInitCallback = onInitCallback;
+            instance = new TTS(context);
         }
         return instance;
     }
 
-    public void setContext(Context context) {
-        this.context = context;
+    public void Speak(String textToSpeak, float pitch, long preUtteranceDelay,
+                      long postUtteranceDelay, float rate, String voiceId, float volume)
+    {
+        if(preUtteranceDelay > 0)
+            textToSpeech.playSilentUtterance(preUtteranceDelay, TextToSpeech.QUEUE_ADD, "");
+
+        Bundle params = new Bundle();
+        params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume);
+        textToSpeech.setPitch(pitch);
+        textToSpeech.setSpeechRate(rate);
+
+        Voice voice = GetVoice(voiceId);
+        if(voice != null)
+            textToSpeech.setVoice(voice);
+        else
+            textToSpeech.setVoice(GetDefaultVoice());
+        textToSpeech.speak(textToSpeak, TextToSpeech.QUEUE_ADD, params, textToSpeak);
+
+        if(postUtteranceDelay > 0)
+            textToSpeech.playSilentUtterance(postUtteranceDelay, TextToSpeech.QUEUE_ADD, "");
     }
 
-    String Error = "";
+    public int Stop()
+    {
+        return textToSpeech.stop();
+    }
 
-    public void TTSME(String text) {
-        textToSpeak = text;
-        TextToSpeech.OnInitListener onInitListener = new TextToSpeech.OnInitListener() {
+    public boolean IsSpeaking()
+    {
+        return textToSpeech.isSpeaking();
+    }
+
+    private Voice GetDefaultVoice()
+    {
+        return textToSpeech.getDefaultVoice();
+    }
+
+    private Voice GetVoice(int index)
+    {
+        return (Voice) AllVoices.toArray()[index];
+    }
+
+    private Voice GetVoice(String voiceName)
+    {
+        for (Voice voice : AllVoices)
+        {
+            if (voice.getName().equals(voiceName))
+            {
+                return voice;
+            }
+        }
+        return null;
+    }
+
+    public int GetNumberOfVoices()
+    {
+        return AllVoices.size();
+    }
+
+    public void SetOnUtteranceProgressListener(final UtteranceProgressCallback progressCallback)
+    {
+        UtteranceProgressListener utteranceProgressListener = new UtteranceProgressListener() {
             @Override
-            public void onInit(int status) {
-                if (status == TextToSpeech.SUCCESS) {
-                    int result = t1.setLanguage(Locale.US);
-                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                        Error = "This language is not supported!";
-                    }
-                    t1.setSpeechRate(Speed);
-                    t1.setPitch(Pitch);
-                    t1.speak(textToSpeak, TextToSpeech.QUEUE_ADD, null, textToSpeak);
-                } else {
-                    Error = "TTS Initialization failed!";
+            public void onStart(String utteranceId)
+            {
+                progressCallback.onStart(utteranceId);
+            }
 
-                }
+            @Override
+            public void onDone(String utteranceId)
+            {
+                progressCallback.onDone(utteranceId);
+            }
 
+            @Override
+            public void onError(String utteranceId)
+            {
+            }
+
+            @Override
+            public void onRangeStart (String utteranceId,
+                                      int start,
+                                      int end,
+                                      int frame)
+            {
+                progressCallback.onRangeStart(utteranceId, start, end, frame);
+            }
+
+            @Override
+            public void onStop(String utteranceId, boolean interrupted)
+            {
+                progressCallback.onStop(utteranceId, interrupted);
             }
         };
 
-        t1 = new TextToSpeech(context, onInitListener);
-
+        textToSpeech.setOnUtteranceProgressListener(utteranceProgressListener);
     }
 
-    public void SetLang(String loc) {
-        switch (loc) {
-            case "UK":
-                if (t1 != null)
-                    t1.setLanguage(Locale.UK);
-                break;
-            case "US":
-                if (t1 != null)
-                    t1.setLanguage(Locale.US);
-                break;
-        }
+    public String GetVoiceId(int index)
+    {
+        return GetVoice(index).getName();
+    }
+
+    public String GetVoiceLocale(int index)
+    {
+        return GetVoice(index).getLocale().toString();
+    }
+
+    public int GetVoiceQuality(int index)
+    {
+        return GetVoice(index).getQuality();
     }
 }
